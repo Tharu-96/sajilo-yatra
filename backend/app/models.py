@@ -1,7 +1,20 @@
-from sqlalchemy import Column, String, Text, Float, Integer, ForeignKey
+from sqlalchemy import Column, String, Text, Float, Integer, ForeignKey, DateTime
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
 from .database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(String(36), primary_key=True)
+    name = Column(String(120), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    reset_otp_hash = Column(String(255), nullable=True)
+    reset_otp_expires_at = Column(DateTime(timezone=True), nullable=True)
+    profile_image_filename = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class Stop(Base):

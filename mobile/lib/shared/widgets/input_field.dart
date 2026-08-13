@@ -7,6 +7,7 @@ class InputField extends StatefulWidget {
   final IconData? prefixIcon;
   final bool readOnly;
   final VoidCallback? onTap;
+  final FocusNode? focusNode;
 
   const InputField({
     super.key,
@@ -15,6 +16,7 @@ class InputField extends StatefulWidget {
     this.prefixIcon,
     this.readOnly = false,
     this.onTap,
+    this.focusNode,
   });
 
   @override
@@ -48,6 +50,7 @@ class _InputFieldState extends State<InputField> {
         ),
         child: TextField(
           controller: widget.controller,
+          focusNode: widget.focusNode,
           readOnly: widget.readOnly,
           onTap: widget.onTap,
           style: const TextStyle(color: AppColors.onSurface),

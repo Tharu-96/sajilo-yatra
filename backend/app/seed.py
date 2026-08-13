@@ -1,5 +1,6 @@
 from .database import SessionLocal, engine, Base
 from .models import Stop, Route, RouteStop
+from sqlalchemy import inspect, text
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -8,10 +9,23 @@ logger = logging.getLogger(__name__)
 def seed_db():
     logger.info("Creating tables...")
     Base.metadata.create_all(bind=engine)
+
+    # create_all does not add new columns to existing tables. Keep this small
+    # compatibility migration here until a dedicated migration tool is added.
+    with engine.begin() as connection:
+        columns = {column["name"] for column in inspect(engine).get_columns("users")}
+        if "profile_image_filename" not in columns:
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN profile_image_filename VARCHAR(255)")
+            )
     
     db = SessionLocal()
     
     try:
+        logger.info("Creating indexes...")
+        db.execute(text("CREATE INDEX IF NOT EXISTS idx_stops_name_lower ON stops(lower(name));"))
+        db.commit()
+
         if db.query(Stop).first():
             logger.info("Database already seeded. Skipping.")
             return

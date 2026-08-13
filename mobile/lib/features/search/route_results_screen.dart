@@ -32,7 +32,7 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
       originLng: widget.searchData['originLng'] ?? 85.3148,
       destLat: widget.searchData['destLat'] ?? 27.6931,
       destLng: widget.searchData['destLng'] ?? 85.2811,
-      preference: widget.searchData['preference'] ?? 'fastest',
+      preference: widget.searchData['preference'] ?? 'shortest',
     );
     _routesFuture.catchError((e) {
       if (mounted) {
@@ -61,6 +61,110 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final from = widget.searchData['from'] ?? 'Unknown';
+    final to = widget.searchData['to'] ?? 'Unknown';
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F9FE),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+              child: Row(children: [
+                IconButton(onPressed: () => context.pop(), icon: const Icon(Icons.arrow_back, color: Color(0xFF005F8D))),
+                Expanded(child: Column(children: [
+                  const Text('SAJILO YATRA', style: TextStyle(letterSpacing: 2, fontWeight: FontWeight.w700, color: Color(0xFF005F8D), fontSize: 16)),
+                  Text('$from → $to', style: const TextStyle(fontSize: 11, color: Color(0xFF667085))),
+                ])),
+                const SizedBox(width: 48),
+              ]),
+            ),
+            Expanded(child: FutureBuilder<Map<String, dynamic>>(
+              future: _routesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return _buildSkeleton();
+                if (snapshot.hasError) return const SizedBox();
+                final routes = (snapshot.data?['results'] as List? ?? []);
+                return Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(color: Color(0xFFEFF4FA), border: Border(top: BorderSide(color: Color(0xFFD5DCE5)))),
+                  child: ListView(padding: const EdgeInsets.fromLTRB(18, 16, 18, 24), children: [
+                    Row(children: [
+                      const Expanded(child: Text('Suggested Routes', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
+                      Text('${routes.length} Found', style: const TextStyle(fontSize: 11, color: Color(0xFF006495), fontWeight: FontWeight.w700)),
+                    ]),
+                    const SizedBox(height: 14),
+                    ...routes.map((route) => Padding(padding: const EdgeInsets.only(bottom: 14), child: _referenceCard(context, route as Map<String, dynamic>))),
+                    if (routes.isNotEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 20),
+                        child: Center(
+                          child: Text(
+                            'No more routes',
+                            style: TextStyle(fontSize: 10, letterSpacing: 1, color: Color(0xFF77808D)),
+                          ),
+                        ),
+                      ),
+                  ]),
+                );
+              },
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _referenceCard(BuildContext context, Map<String, dynamic> route) {
+    final legs = (route['legs'] as List).where((leg) => leg['mode'] == 'bus').toList();
+    final directions = legs.map((leg) => '${leg['from_stop']} → ${leg['to_stop']}').toList();
+    final transfers = route['transfer_count'] as num? ?? 0;
+    final walking = (route['walking_distance_km'] as num? ?? 0).toStringAsFixed(1);
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => context.push('/bus-options', extra: route),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(13, 13, 13, 12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFF8994A3)), boxShadow: const [BoxShadow(color: Color(0x16006495), blurRadius: 4, offset: Offset(-3, 1))]),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            RichText(text: TextSpan(style: const TextStyle(color: Color(0xFF172235)), children: [TextSpan(text: '${route['total_time_min']}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)), const TextSpan(text: ' min', style: TextStyle(fontSize: 12))])),
+            const Spacer(),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('🚶 $walking km', style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),
+              const SizedBox(height: 4), Text('♟ $transfers ${transfers == 1 ? 'transfer' : 'transfers'}', style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),
+            ]),
+          ]),
+          const SizedBox(height: 7),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3), decoration: BoxDecoration(border: Border.all(color: const Color(0xFF006495)), borderRadius: BorderRadius.circular(20)), child: Text('Rs. ${route['total_fare_npr']}', style: const TextStyle(color: Color(0xFF005F8D), fontFamily: 'monospace', fontSize: 11))),
+          const SizedBox(height: 12),
+          LayoutBuilder(builder: (context, constraints) => Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Icon(Icons.circle_outlined, color: Color(0xFF006495), size: 14),
+              ...directions.map((direction) => ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth - 28),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFF8A96A5)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(direction, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Color(0xFF405064))),
+                ),
+              )),
+              const Icon(Icons.circle, color: Color(0xFF006495), size: 12),
+            ],
+          )),
+        ]),
+      ),
+    );
+  }
+
+  Widget _legacyBuild(BuildContext context) {
     final from = widget.searchData['from'] ?? 'Unknown';
     final to = widget.searchData['to'] ?? 'Unknown';
     return Scaffold(
@@ -133,7 +237,7 @@ class _RouteResultsScreenState extends State<RouteResultsScreen> {
     
     final legs = route['legs'] as List;
     final busLegs = legs.where((leg) => leg['mode'] == 'bus').toList();
-    final routes = busLegs.map((l) => l['route_id'].toString()).toList();
+    final routes = busLegs.map((l) => '${l['from_stop']} → ${l['to_stop']}').toList();
 
     return GestureDetector(
       onTap: () => context.push('/bus-options', extra: route),

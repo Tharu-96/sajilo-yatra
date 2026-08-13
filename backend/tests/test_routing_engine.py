@@ -46,33 +46,33 @@ def verify_response_structure(response_data):
                 assert leg["route_name"] is not None
                 assert leg["fare_npr"] is not None
 
-def test_fastest_route():
+def test_shortest_route():
     req = {
         "origin_lat": ORIGIN_LAT,
         "origin_lng": ORIGIN_LNG,
         "dest_lat": DEST_LAT,
         "dest_lng": DEST_LNG,
-        "preference": "fastest"
+        "preference": "shortest"
     }
     response = client.post("/api/routes/search", json=req)
     assert response.status_code == 200
     data = response.json()
     verify_response_structure(data)
-    assert data["results"][0]["label"] == "Fastest"
+    assert data["results"][0]["label"] == "Shortest"
 
-def test_fewest_transfers_route():
+def test_fewer_transfers_route():
     req = {
         "origin_lat": ORIGIN_LAT,
         "origin_lng": ORIGIN_LNG,
         "dest_lat": DEST_LAT,
         "dest_lng": DEST_LNG,
-        "preference": "fewest_transfers"
+        "preference": "fewer_transfers"
     }
     response = client.post("/api/routes/search", json=req)
     assert response.status_code == 200
     data = response.json()
     verify_response_structure(data)
-    assert data["results"][0]["label"] == "Fewest Transfers"
+    assert data["results"][0]["label"] == "Fewer Transfers"
 
 def test_least_walking_route():
     req = {

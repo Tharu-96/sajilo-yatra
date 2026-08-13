@@ -12,7 +12,7 @@ class RoutePreferenceScreen extends StatefulWidget {
 }
 
 class _RoutePreferenceScreenState extends State<RoutePreferenceScreen> {
-  String _selectedPref = 'fastest';
+  String _selectedPref = 'shortest';
 
   @override
   Widget build(BuildContext context) {
@@ -25,11 +25,11 @@ class _RoutePreferenceScreenState extends State<RoutePreferenceScreen> {
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            _buildPrefOption('Fastest Route', 'fastest'),
+            _buildPrefOption('Fewer Transfers', 'fewer_transfers'),
             const SizedBox(height: 16),
             _buildPrefOption('Least Walking', 'least_walking'),
             const SizedBox(height: 16),
-            _buildPrefOption('Cheapest', 'cheapest'),
+            _buildPrefOption('Shortest', 'shortest'),
             const Spacer(),
             PrimaryButton(
               text: 'Apply Preferences',

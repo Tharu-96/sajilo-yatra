@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
-import 'dart:ui';
 
 class PillBottomNav extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -13,52 +12,56 @@ class PillBottomNav extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            height: 64,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerHigh.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.1),
-                width: 1,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          height: 76,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 6),
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _NavItem(
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home,
-                  index: 0,
-                  currentIndex: navigationShell.currentIndex,
-                  onTap: () => _goBranch(0),
-                ),
-                _NavItem(
-                  icon: Icons.search_outlined,
-                  activeIcon: Icons.search,
-                  index: 1,
-                  currentIndex: navigationShell.currentIndex,
-                  onTap: () => _goBranch(1),
-                ),
-                _NavItem(
-                  icon: Icons.bookmark_border,
-                  activeIcon: Icons.bookmark,
-                  index: 2,
-                  currentIndex: navigationShell.currentIndex,
-                  onTap: () => _goBranch(2),
-                ),
-                _NavItem(
-                  icon: Icons.person_outline,
-                  activeIcon: Icons.person,
-                  index: 3,
-                  currentIndex: navigationShell.currentIndex,
-                  onTap: () => _goBranch(3),
-                ),
-              ],
-            ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _NavItem(
+                icon: Icons.home_outlined,
+                activeIcon: Icons.home,
+                label: 'Home',
+                index: 0,
+                currentIndex: navigationShell.currentIndex,
+                onTap: () => _goBranch(0),
+              ),
+              _NavItem(
+                icon: Icons.search_outlined,
+                activeIcon: Icons.search,
+                label: 'Search',
+                index: 1,
+                currentIndex: navigationShell.currentIndex,
+                onTap: () => _goBranch(1),
+              ),
+              _NavItem(
+                icon: Icons.bookmark_border,
+                activeIcon: Icons.bookmark,
+                label: 'Saved',
+                index: 2,
+                currentIndex: navigationShell.currentIndex,
+                onTap: () => _goBranch(2),
+              ),
+              _NavItem(
+                icon: Icons.person_outline,
+                activeIcon: Icons.person,
+                label: 'Profile',
+                index: 3,
+                currentIndex: navigationShell.currentIndex,
+                onTap: () => _goBranch(3),
+              ),
+            ],
           ),
         ),
       ),
@@ -76,6 +79,7 @@ class PillBottomNav extends StatelessWidget {
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final IconData activeIcon;
+  final String label;
   final int index;
   final int currentIndex;
   final VoidCallback onTap;
@@ -83,6 +87,7 @@ class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.icon,
     required this.activeIcon,
+    required this.label,
     required this.index,
     required this.currentIndex,
     required this.onTap,
@@ -91,40 +96,34 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = index == currentIndex;
-    
+    final color = isActive ? AppColors.sapphireBlue : AppColors.outline;
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 60,
+        width: 64,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               isActive ? activeIcon : icon,
-              color: isActive ? AppColors.sapphireBlue : AppColors.onSurface,
+              color: color,
+              size: 26,
             ),
-            if (isActive) ...[
-              const SizedBox(height: 4),
-              Container(
-                width: 20,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: AppColors.sapphireBlue,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.sapphireBlue.withOpacity(0.5),
-                      blurRadius: 4,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
               ),
-            ],
+            ),
           ],
         ),
       ),
     );
   }
 }
+

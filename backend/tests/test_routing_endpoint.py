@@ -7,19 +7,19 @@ class TestRoutingEndpoint(unittest.TestCase):
     def setUp(self):
         self.url = "http://127.0.0.1:8000/api/routes/search"
         self.headers = {'Content-Type': 'application/json'}
-        self.req_fastest = {
+        self.req_shortest = {
             "origin_lat": 27.7058,
             "origin_lng": 85.3148,
             "dest_lat": 27.6931,
             "dest_lng": 85.2811,
-            "preference": "fastest"
+            "preference": "shortest"
         }
         self.req_transfers = {
             "origin_lat": 27.7058,
             "origin_lng": 85.3148,
             "dest_lat": 27.6931,
             "dest_lng": 85.2811,
-            "preference": "fewest_transfers"
+            "preference": "fewer_transfers"
         }
         self.req_walking = {
             "origin_lat": 27.7058,
@@ -41,8 +41,8 @@ class TestRoutingEndpoint(unittest.TestCase):
             except:
                 return e.code, raw
 
-    def test_search_fastest(self):
-        status, data = self._post(self.req_fastest)
+    def test_search_shortest(self):
+        status, data = self._post(self.req_shortest)
         self.assertEqual(status, 200, f"Error: {data}")
         self.assertIn("results", data)
         if len(data["results"]) > 0:
@@ -54,7 +54,7 @@ class TestRoutingEndpoint(unittest.TestCase):
             self.assertIn("walking_distance_km", res1)
             self.assertIn("legs", res1)
 
-    def test_search_fewest_transfers(self):
+    def test_search_fewer_transfers(self):
         status, data = self._post(self.req_transfers)
         self.assertEqual(status, 200, f"Error: {data}")
 

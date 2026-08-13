@@ -35,6 +35,18 @@ class _LocationPermissionScreenState extends State<LocationPermissionScreen> wit
   Future<void> _requestLocationPermission() async {
     setState(() => _isLoading = true);
     try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please turn on GPS/Location Services.')),
+          );
+        }
+        await Geolocator.openLocationSettings();
+        setState(() => _isLoading = false);
+        return;
+      }
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -60,12 +72,14 @@ class _LocationPermissionScreenState extends State<LocationPermissionScreen> wit
       }
 
       final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ));
       
       LocationService().updateLocation(LatLng(position.latitude, position.longitude));
       
       if (mounted) {
-        context.go('/home');
+        context.go('/login');
       }
     } catch (e) {
       if (mounted) {
@@ -177,7 +191,7 @@ class _LocationPermissionScreenState extends State<LocationPermissionScreen> wit
                         side: BorderSide(color: Colors.white.withOpacity(0.1)),
                       ),
                     ),
-                    onPressed: () => context.go('/home'),
+                    onPressed: () => context.go('/login'),
                     child: Text(
                       'Not Now',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(

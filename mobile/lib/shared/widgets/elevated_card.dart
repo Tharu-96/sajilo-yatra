@@ -36,7 +36,11 @@ class ElevatedCard extends StatelessWidget {
               ],
             ),
           ),
-          child: child,
+          // Transparent Material lets ListTile ink splashes paint above the decoration.
+          child: Material(
+            color: Colors.transparent,
+            child: child,
+          ),
         ),
       ),
     );

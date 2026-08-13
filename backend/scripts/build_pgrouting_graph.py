@@ -71,6 +71,11 @@ def build_graph():
                 curr_rs = r_stops[i]
                 next_rs = r_stops[i + 1]
 
+                # Duplicate adjacent stops produce zero-cost self loops. They
+                # do not represent travel and can distort a weighted search.
+                if curr_rs.stop_id == next_rs.stop_id:
+                    continue
+
                 source_id = node_map[(curr_rs.stop_id, route.id)]
                 target_id = node_map[(next_rs.stop_id, route.id)]
 
@@ -111,6 +116,46 @@ def build_graph():
                             distance_km=0.0,
                             is_transfer=1,
                             reverse_cost=-1.0
+                        ))
+
+        # Connect nearby, distinct stops with pedestrian edges.  Source
+        # addresses and stop datasets often refer to adjacent platforms with
+        # different stop ids; without these edges every transfer is a
+        # zero-distance same-stop change and the least-walking preference has
+        # no real walking trade-off to optimise.  Limiting each stop to its
+        # three closest neighbours within 250 m keeps the graph local and
+        # prevents a walking shortcut from becoming a cross-city route.
+        logger.info("Building nearby pedestrian transfer edges...")
+        max_walk_transfer_km = 0.25
+        max_nearby_stops = 3
+        for source_stop in stops.values():
+            nearby = sorted(
+                (
+                    (haversine_distance(source_stop.latitude, source_stop.longitude,
+                                        target_stop.latitude, target_stop.longitude), target_stop)
+                    for target_stop in stops.values()
+                    if target_stop.id != source_stop.id
+                ),
+                key=lambda item: item[0],
+            )
+            for raw_distance, target_stop in nearby[:max_nearby_stops]:
+                if raw_distance > max_walk_transfer_km:
+                    break
+                # Keep coincident records connected, but never create a
+                # zero-cost edge that can distort a weighted path search.
+                distance = max(raw_distance, 0.01)
+                time_min = distance / 5.0 * 60.0
+                for source_route in stop_to_routes[source_stop.id]:
+                    for target_route in stop_to_routes[target_stop.id]:
+                        edges_to_insert.append(RoutingEdge(
+                            source=node_map[(source_stop.id, source_route)],
+                            target=node_map[(target_stop.id, target_route)],
+                            route_id=None,
+                            cost_time=time_min,
+                            cost_transfers=1,
+                            distance_km=distance,
+                            is_transfer=1,
+                            reverse_cost=-1.0,
                         ))
 
         db.add_all(edges_to_insert)

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_service.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -12,9 +14,22 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) context.go('/onboarding');
-    });
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    // Restore any saved session while the splash animation is on screen.
+    final restore = AuthService.instance.restoreSession();
+    final minSplash = Future<void>.delayed(const Duration(seconds: 2));
+    final user = await restore;
+    await minSplash;
+    if (!mounted) return;
+
+    if (user != null) {
+      context.go('/home');
+    } else {
+      context.go('/onboarding');
+    }
   }
 
   @override
