@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/api_service.dart';
 import '../../core/osrm_service.dart';
@@ -396,7 +397,7 @@ class _PreviewMap extends StatelessWidget {
       ),
       children: [
         TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          urlTemplate: 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${dotenv.env['MAPTILER_API_KEY']}',
           userAgentPackageName: 'com.sajiloyatra.app',
           tileProvider: CancellableNetworkTileProvider(),
         ),

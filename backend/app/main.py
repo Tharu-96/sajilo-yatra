@@ -8,13 +8,15 @@ app = FastAPI(title="Sajilo Yatra API", description="Transit API for Kathmandu")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    # Flutter web uses a different localhost port on each debug run.
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origins=["*"], # Render/Vercel safe
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health", tags=["System"])
+def health_check():
+    return {"status": "ok", "message": "Sajilo Yatra API is running"}
 
 app.include_router(route_finder.router, prefix="/api/routes", tags=["Route Finder"])
 app.include_router(stops.router, prefix="/api/stops", tags=["Stops"])

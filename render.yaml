@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: sajilo-yatra-api
+    env: docker
+    region: singapore # or ohio, frankfurt, oregon
+    plan: free
+    dockerContext: backend
+    dockerfilePath: backend/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        sync: false # Set this manually in Render Dashboard
+      - key: JWT_SECRET_KEY
+        sync: false # Set this manually in Render Dashboard
+      - key: ALLOWED_ORIGINS
+        value: "https://sajilo-yatra-api.onrender.com"

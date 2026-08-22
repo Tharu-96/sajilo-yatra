@@ -32,9 +32,8 @@ class AuthService {
     if (configuredUrl.isNotEmpty) {
       return '${configuredUrl.replaceFirst(RegExp(r'/+$'), '')}/api';
     }
-    if (kIsWeb) return 'http://192.168.18.209:8000/api';
-    if (Platform.isAndroid) return 'http://192.168.18.209:8000/api';
-    return 'http://192.168.18.209:8000/api';
+    // Fallback to production URL when no API_BASE_URL is provided
+    return 'https://sajilo-yatra-api.onrender.com/api';
   }
 
   Future<String?> get token => _storage.read(key: _tokenKey);
@@ -164,12 +163,11 @@ class AuthService {
       throw AuthException('Unable to remove profile image.');
     }
   }
-
   Future<AuthUser> _fetchCurrentUser(String storedToken) async {
     final response = await http.get(
       Uri.parse('$_baseUrl/auth/me'),
       headers: {'Authorization': 'Bearer $storedToken'},
-    );
+    ).timeout(const Duration(seconds: 3));
     if (response.statusCode == 200) {
       return AuthUser.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,

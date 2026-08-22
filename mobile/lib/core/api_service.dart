@@ -11,9 +11,8 @@ class ApiService {
     if (configuredUrl.isNotEmpty) {
       return '${configuredUrl.replaceFirst(RegExp(r'/+$'), '')}/api';
     }
-    if (kIsWeb) return 'http://192.168.18.209:8000/api';
-    if (Platform.isAndroid) return 'http://192.168.18.209:8000/api';
-    return 'http://192.168.18.209:8000/api';
+    // Fallback to production URL when no API_BASE_URL is provided
+    return 'https://sajilo-yatra-api.onrender.com/api';
   }
 
   static Future<Map<String, dynamic>> searchRoutes({

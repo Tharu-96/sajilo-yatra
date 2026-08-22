@@ -19,10 +19,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _bootstrap() async {
     // Restore any saved session while the splash animation is on screen.
-    final restore = AuthService.instance.restoreSession();
-    final minSplash = Future<void>.delayed(const Duration(seconds: 2));
-    final user = await restore;
-    await minSplash;
+    final user = await AuthService.instance.restoreSession();
     if (!mounted) return;
 
     if (user != null) {

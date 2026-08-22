@@ -18,8 +18,13 @@ class Settings(BaseSettings):
     otp_expire_minutes: int = 10
     profile_image_storage_dir: str = "uploads/profile-images"
 
+    port: int = 8000
+    
     @property
     def cors_origins(self) -> List[str]:
+        # Always allow all origins in development/demo, but can be restricted via ALLOWED_ORIGINS
+        if not self.allowed_origins:
+            return ["*"]
         return [origin.strip() for origin in self.allowed_origins.split(",")]
 
     class Config:
