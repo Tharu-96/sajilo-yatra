@@ -20,7 +20,7 @@ def export_database():
     try:
         # pg_dump requires the pg_dump command to be installed and in PATH
         subprocess.run(
-            ["pg_dump", "--clean", "--if-exists", "--no-owner", "--no-privileges", "-f", output_file, db_url],
+            ["pg_dump", "--clean", "--if-exists", "--no-owner", "--no-privileges", "--column-inserts", "-f", output_file, db_url],
             check=True
         )
         print(f"Successfully exported to {output_file}")
