@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/api_service.dart';
 import '../../core/location_service.dart';
 import '../../core/osrm_service.dart';
+import '../../core/widgets/app_tile_layer.dart';
 
 class RouteDetailScreen extends StatefulWidget {
   final Map<String, dynamic> route;
@@ -197,11 +198,7 @@ class _RouteMap extends StatelessWidget {
     return FlutterMap(
       options: MapOptions(initialCenter: points.first, initialZoom: 13),
       children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.sajiloyatra.app',
-          tileProvider: CancellableNetworkTileProvider(),
-        ),
+        const AppTileLayer(),
         PolylineLayer(polylines: segments.map((segment) => Polyline(
           points: segment.latLngs,
           color: AppColors.sapphireBlue,

@@ -11,6 +11,7 @@ import '../../core/location_service.dart';
 import '../../core/nominatim_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import '../../core/widgets/app_tile_layer.dart';
 
 class LocationPickerScreen extends StatefulWidget {
   const LocationPickerScreen({super.key});
@@ -450,12 +451,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
             ),
             children: [
-              TileLayer(
-                urlTemplate:
-                    'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${dotenv.env['MAPTILER_API_KEY']}',
-                userAgentPackageName: 'com.sajiloyatra.app',
-                tileProvider: CancellableNetworkTileProvider(),
-              ),
+              const AppTileLayer(),
               MarkerLayer(
                 markers: [
                   if (origin != null)

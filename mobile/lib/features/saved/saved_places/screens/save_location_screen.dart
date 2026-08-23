@@ -12,6 +12,7 @@ import '../models/saved_place.dart';
 import '../models/selected_location.dart';
 import '../providers/saved_places_provider.dart';
 import '../widgets/icon_selector.dart';
+import '../../../../core/widgets/app_tile_layer.dart';
 
 class SaveLocationScreen extends ConsumerStatefulWidget {
   final SelectedLocation selectedLocation;
@@ -163,12 +164,8 @@ class _SaveLocationScreenState
                       ),
                     ),
                       children: [
-                      TileLayer(
-                        urlTemplate: 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${dotenv.env['MAPTILER_API_KEY']}',
-                        userAgentPackageName: 'com.sajiloyatra.app',
-                        tileProvider: CancellableNetworkTileProvider(),
-                      ),
-                      MarkerLayer(
+                        const AppTileLayer(),
+                        MarkerLayer(
                         markers: [
                           Marker(
                             point: LatLng(

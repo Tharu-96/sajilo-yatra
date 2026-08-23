@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import '../models/selected_location.dart';
 import '../services/map_location_service.dart';
 import '../services/places_service.dart';
+import '../../../../core/widgets/app_tile_layer.dart';
 
 class MapLocationPickerScreen extends StatefulWidget {
   final PlaceDetails? initialPlace;
@@ -110,11 +111,7 @@ class _MapLocationPickerScreenState extends State<MapLocationPickerScreen> {
               onPositionChanged: _onPositionChanged,
             ),
             children: [
-              TileLayer(
-                urlTemplate: 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${dotenv.env['MAPTILER_API_KEY']}',
-                userAgentPackageName: 'com.sajiloyatra.app',
-                tileProvider: CancellableNetworkTileProvider(),
-              ),
+              const AppTileLayer(),
             ],
           ),
           SafeArea(

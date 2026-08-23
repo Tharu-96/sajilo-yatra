@@ -7,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/api_service.dart';
 import '../../core/osrm_service.dart';
+import '../../core/widgets/app_tile_layer.dart';
 
 /// Distinct polyline colors for each leg (up to 6 legs; wraps around).
 const _legColors = <Color>[
@@ -396,11 +397,7 @@ class _PreviewMap extends StatelessWidget {
         ),
       ),
       children: [
-        TileLayer(
-          urlTemplate: 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${dotenv.env['MAPTILER_API_KEY']}',
-          userAgentPackageName: 'com.sajiloyatra.app',
-          tileProvider: CancellableNetworkTileProvider(),
-        ),
+        const AppTileLayer(),
         // Bus leg polylines — each a distinct color
         PolylineLayer(polylines: segments.map((segment) => Polyline(
           points: segment.latLngs,

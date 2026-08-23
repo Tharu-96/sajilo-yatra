@@ -10,6 +10,7 @@ import '../../core/api_service.dart';
 import '../../core/location_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../saved/saved_places/services/places_service.dart';
+import '../../core/widgets/app_tile_layer.dart';
 
 class NearbyStopsScreen extends StatefulWidget {
   const NearbyStopsScreen({super.key});
@@ -226,11 +227,7 @@ class _NearbyStopsScreenState extends State<NearbyStopsScreen> {
               onTap: (_, __) => _dismissPopup(),
             ),
             children: [
-              TileLayer(
-                urlTemplate: 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${dotenv.env['MAPTILER_API_KEY']}',
-                userAgentPackageName: 'com.sajiloyatra.app',
-                tileProvider: CancellableNetworkTileProvider(),
-              ),
+              const AppTileLayer(),
               if (_walkingRoute.isNotEmpty)
                 PolylineLayer(
                   polylines: [
