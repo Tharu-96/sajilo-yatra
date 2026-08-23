@@ -1,0 +1,14 @@
+# Database dumps and logs
+cloud_db_seed.sql
+*.sql
+*.log
+
+# Environment variables
+.env
+backend/.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+env/
