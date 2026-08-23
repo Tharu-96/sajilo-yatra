@@ -18,21 +18,36 @@ logger = logging.getLogger(__name__)
 
 def _send_via_brevo(message: EmailMessage) -> None:
     """Send an email using Brevo's transactional email HTTP API."""
+    from email.utils import parseaddr
+    
     api_key = settings.brevo_api_key.strip()
     if not api_key:
         raise RuntimeError("BREVO_API_KEY is not configured.")
 
-    sender_email = message["From"] or settings.smtp_username
-    to_email = message["To"]
+    sender_name, sender_email = parseaddr(message["From"])
+    if not sender_email:
+        sender_email = settings.smtp_username
+        
+    to_name, to_email = parseaddr(message["To"])
+    if not to_email:
+        to_email = message["To"]
+
     subject = message["Subject"] or "(no subject)"
     body = message.get_content()
 
-    payload = json.dumps({
-        "sender": {"email": sender_email, "name": "Sajilo Yatra"},
-        "to": [{"email": to_email}],
+    payload_dict = {
+        "sender": {"email": sender_email, "name": sender_name or "Sajilo Yatra"},
+        "to": [{"email": to_email, "name": to_name} if to_name else {"email": to_email}],
         "subject": subject,
         "textContent": body,
-    }).encode("utf-8")
+    }
+    
+    # Brevo API allows Reply-To headers
+    reply_to_name, reply_to_email = parseaddr(message.get("Reply-To", ""))
+    if reply_to_email:
+        payload_dict["replyTo"] = {"email": reply_to_email, "name": reply_to_name}
+        
+    payload = json.dumps(payload_dict).encode("utf-8")
 
     req = urllib.request.Request(
         "https://api.brevo.com/v3/smtp/email",

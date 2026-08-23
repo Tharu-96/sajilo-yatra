@@ -18,14 +18,19 @@ def send_feedback(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, str]:
     """Deliver customer feedback using the server's configured SMTP account."""
-    if not all(
-        [
-            settings.smtp_host,
-            settings.smtp_username,
-            settings.smtp_password,
-            settings.support_email,
-        ]
-    ):
+    has_smtp = all([
+        settings.smtp_host,
+        settings.smtp_username,
+        settings.smtp_password,
+        settings.support_email,
+    ])
+    has_brevo = all([
+        settings.brevo_api_key,
+        settings.smtp_username,
+        settings.support_email,
+    ])
+
+    if not (has_smtp or has_brevo):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Feedback email is not configured.",
