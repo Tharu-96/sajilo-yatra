@@ -78,7 +78,6 @@ class RouteSearchRequest(BaseModel):
     origin_lng: float
     dest_lat: float
     dest_lng: float
-    preference: Literal["shortest", "fewer_transfers", "least_walking"] = "shortest"
 
 
 class RouteSearchResult(BaseModel):

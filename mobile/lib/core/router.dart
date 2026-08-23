@@ -6,10 +6,8 @@ import '../features/onboarding/onboarding_screen.dart';
 import '../features/onboarding/location_permission_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/search/location_picker_screen.dart';
-import '../features/search/route_preference_screen.dart';
 import '../features/search/route_results_screen.dart';
 import '../features/search/bus_options_screen.dart';
-import '../features/search/route_detail_screen.dart';
 import '../features/search/route_preview_screen.dart';
 import '../features/nearby/nearby_stops_screen.dart';
 import '../features/nearby/stop_detail_screen.dart';
@@ -104,14 +102,6 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const LocationPickerScreen(),
     ),
     GoRoute(
-      path: '/preferences',
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>? ?? {};
-        return RoutePreferenceScreen(searchData: extra);
-      },
-    ),
-    GoRoute(
       path: '/results',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) {
@@ -125,14 +115,6 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         final route = state.extra as Map<String, dynamic>? ?? {};
         return BusOptionsScreen(route: route);
-      },
-    ),
-    GoRoute(
-      path: '/route-detail',
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) {
-        final route = state.extra as Map<String, dynamic>? ?? {};
-        return RouteDetailScreen(route: route);
       },
     ),
     GoRoute(

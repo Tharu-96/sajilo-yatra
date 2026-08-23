@@ -20,7 +20,6 @@ class ApiService {
     required double originLng,
     required double destLat,
     required double destLng,
-    required String preference,
   }) async {
     final url = Uri.parse('$_baseUrl/routes/search');
     final response = await http.post(
@@ -31,7 +30,6 @@ class ApiService {
         'origin_lng': originLng,
         'dest_lat': destLat,
         'dest_lng': destLng,
-        'preference': preference,
       }),
     );
 

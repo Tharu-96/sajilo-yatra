@@ -226,7 +226,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       _selectedToStop = toStop;
     });
 
-    context.push('/preferences', extra: {
+    context.push('/results', extra: {
       'from': fromText,
       'to': toText,
       'originLat': isCurrentLocation

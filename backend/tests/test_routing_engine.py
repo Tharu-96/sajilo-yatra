@@ -58,7 +58,10 @@ def test_shortest_route():
     assert response.status_code == 200
     data = response.json()
     verify_response_structure(data)
-    assert data["results"][0]["label"] == "Shortest"
+    # Results are pooled from every strategy and ranked fastest-first.
+    assert data["results"][0]["label"].startswith("Route")
+    times = [r["total_time_min"] for r in data["results"]]
+    assert times == sorted(times), "Results not ranked by travel time"
 
 def test_fewer_transfers_route():
     req = {
@@ -72,7 +75,7 @@ def test_fewer_transfers_route():
     assert response.status_code == 200
     data = response.json()
     verify_response_structure(data)
-    assert data["results"][0]["label"] == "Fewer Transfers"
+    assert data["results"][0]["label"].startswith("Route")
 
 def test_least_walking_route():
     req = {
@@ -86,8 +89,7 @@ def test_least_walking_route():
     assert response.status_code == 200
     data = response.json()
     verify_response_structure(data)
-    assert data["results"][0]["label"] == "Least Walking"
-    
-    # Check that it's actually sorted by walking distance
-    walk_dists = [r["walking_distance_km"] for r in data["results"]]
-    assert walk_dists == sorted(walk_dists), "Results not sorted by walking distance"
+    assert data["results"][0]["label"].startswith("Route")
+
+    times = [r["total_time_min"] for r in data["results"]]
+    assert times == sorted(times), "Results not ranked by travel time"

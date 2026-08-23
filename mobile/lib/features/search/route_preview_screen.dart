@@ -76,6 +76,7 @@ class _RoutePreviewScreenState extends State<RoutePreviewScreen> {
         legIndex: i,
         leg: leg.cast<String, dynamic>(),
         latLngs: detailedRoute,
+        rawStops: rawPoints,
         color: _legColors[i % _legColors.length],
         operatorName: operator,
       ));
@@ -223,75 +224,10 @@ class _RoutePreviewScreenState extends State<RoutePreviewScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    const Text('Trip Legs', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 10),
+                    const Text('Step-by-step directions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 12),
 
-                    // Legend entries
-                    ...segments.map((segment) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(children: [
-                        Container(
-                          width: 28, height: 28,
-                          decoration: BoxDecoration(
-                            color: segment.color.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(child: Text(
-                            '${segment.legIndex + 1}',
-                            style: TextStyle(
-                              color: segment.color,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                            ),
-                          )),
-                        ),
-                        const SizedBox(width: 10),
-                        Container(width: 20, height: 4, decoration: BoxDecoration(
-                          color: segment.color,
-                          borderRadius: BorderRadius.circular(2),
-                        )),
-                        const SizedBox(width: 10),
-                        Expanded(child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Leg ${segment.legIndex + 1} — ${segment.operatorName}',
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${segment.leg['from_stop']} → ${segment.leg['to_stop']}',
-                              style: const TextStyle(fontSize: 11, color: Color(0xFF667085)),
-                            ),
-                          ],
-                        )),
-                      ]),
-                    )),
-
-                    // Walking legs
-                    ...allLegs.where((l) => l['mode'] == 'walk').map((leg) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(children: [
-                        Container(
-                          width: 28, height: 28,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF2F4F7),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.directions_walk, size: 16, color: Color(0xFF667085)),
-                        ),
-                        const SizedBox(width: 10),
-                        Container(width: 20, height: 4, decoration: BoxDecoration(
-                          color: const Color(0xFF667085),
-                          borderRadius: BorderRadius.circular(2),
-                        )),
-                        const SizedBox(width: 10),
-                        Expanded(child: Text(
-                          'Walk — ${leg['from_stop']} to ${leg['to_stop']} (${leg['duration_min']} min)',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF667085)),
-                        )),
-                      ]),
-                    )),
+                    ..._buildDirectionSteps(allLegs, segments),
                   ],
                 ),
               ),
@@ -299,6 +235,96 @@ class _RoutePreviewScreenState extends State<RoutePreviewScreen> {
           ]);
         },
       ),
+    );
+  }
+
+  /// Builds an ordered, turn-by-turn guide from the legs in travel order.
+  List<Widget> _buildDirectionSteps(List allLegs, List<_LegSegment> segments) {
+    final steps = <Widget>[];
+    var busIndex = 0;
+    var stepNo = 1;
+
+    for (final rawLeg in allLegs) {
+      final leg = rawLeg as Map;
+      final from = (leg['from_stop'] ?? '').toString();
+      final to = (leg['to_stop'] ?? '').toString();
+
+      if (leg['mode'] == 'walk') {
+        final mins = (leg['duration_min'] as num?)?.toInt() ?? 0;
+        if (mins <= 0) continue;
+        final label = (from == 'Origin')
+            ? 'Walk to your first bus stop ($mins min)'
+            : (to == 'Destination')
+                ? 'Walk to your destination ($mins min)'
+                : 'Walk from $from to $to ($mins min)';
+        steps.add(_stepTile(
+          number: stepNo++,
+          color: const Color(0xFF667085),
+          icon: Icons.directions_walk,
+          title: label,
+          subtitle: null,
+        ));
+      } else {
+        final segment = busIndex < segments.length ? segments[busIndex] : null;
+        final operator = segment?.operatorName ?? (leg['route_name'] ?? 'Bus').toString();
+        final color = segment?.color ?? const Color(0xFF006495);
+        final stopsCount = (leg['stops'] as num?)?.toInt() ?? 0;
+        steps.add(_stepTile(
+          number: stepNo++,
+          color: color,
+          icon: Icons.directions_bus,
+          title: 'Board $operator at $from',
+          subtitle: 'Ride ${stopsCount > 0 ? '$stopsCount stops ' : ''}and get off at $to',
+        ));
+        if (busIndex < segments.length - 1) {
+          steps.add(_stepTile(
+            number: stepNo++,
+            color: const Color(0xFFAA3C1A),
+            icon: Icons.compare_arrows,
+            title: 'Transfer at $to',
+            subtitle: 'Change to your next bus',
+          ));
+        }
+        busIndex++;
+      }
+    }
+
+    steps.add(_stepTile(
+      number: stepNo,
+      color: const Color(0xFF16806B),
+      icon: Icons.flag,
+      title: 'Arrive at your destination',
+      subtitle: null,
+    ));
+    return steps;
+  }
+
+  Widget _stepTile({
+    required int number,
+    required Color color,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 30, height: 30,
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
+          child: Center(child: Text('$number', style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 13))),
+        ),
+        const SizedBox(width: 12),
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A2530))),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFF667085))),
+          ],
+        ])),
+      ]),
     );
   }
 
@@ -350,12 +376,14 @@ class _LegSegment {
     required this.legIndex,
     required this.leg,
     required this.latLngs,
+    required this.rawStops,
     required this.color,
     required this.operatorName,
   });
   final int legIndex;
   final Map<String, dynamic> leg;
   final List<LatLng> latLngs;
+  final List<Map<String, dynamic>> rawStops;
   final Color color;
   final String operatorName;
 }
@@ -408,24 +436,53 @@ class _PreviewMap extends StatelessWidget {
         PolylineLayer(polylines: _dashedPolylines(walkingSegments)),
         // Start and end markers
         MarkerLayer(markers: [
+          // A few evenly-spaced intermediate stop labels (not every stop)
+          ..._sampledStopMarkers(segments),
+
+          // Source marker at the user's actual starting point
+          if (_originPoint() != null)
+            Marker(
+              point: _originPoint()!,
+              width: 40, height: 40,
+              child: const _SourceMarker(),
+            ),
+
           if (segments.isNotEmpty) ...[
+            // First boarding stop — labelled like the other bus stops
             Marker(
               point: segments.first.latLngs.first,
-              width: 38, height: 38,
-              child: const _StopMarker(color: Color(0xFF16806B), icon: Icons.trip_origin),
+              width: 150, height: 52,
+              alignment: Alignment.center,
+              child: _BusStopMarker(
+                label: segments.first.rawStops.isNotEmpty
+                    ? segments.first.rawStops.first['name'].toString()
+                    : (segments.first.leg['from_stop'] ?? 'Board here').toString(),
+                accent: const Color(0xFF16806B),
+              ),
             ),
+            // Destination — labelled with a pin
             Marker(
               point: segments.last.latLngs.last,
-              width: 38, height: 38,
-              child: const _StopMarker(color: Color(0xFFAA3C1A), icon: Icons.location_on),
+              width: 150, height: 52,
+              alignment: Alignment.center,
+              child: _DestinationMarker(
+                label: segments.last.rawStops.isNotEmpty
+                    ? segments.last.rawStops.last['name'].toString()
+                    : (segments.last.leg['to_stop'] ?? 'Destination').toString(),
+              ),
             ),
           ],
-          // Intermediate transfer points
+          // Intermediate transfer points — where the rider changes buses
           for (var i = 0; i < segments.length - 1; i++)
             Marker(
               point: segments[i].latLngs.last,
-              width: 28, height: 28,
-              child: _TransferMarker(color: segments[i].color, label: '${i + 1}'),
+              width: 160, height: 66,
+              alignment: Alignment.center,
+              child: _TransferMarker(
+                stopName: segments[i].rawStops.isNotEmpty
+                    ? segments[i].rawStops.last['name'].toString()
+                    : (segments[i].leg['to_stop'] ?? 'Transfer').toString(),
+              ),
             ),
         ]),
       ],
@@ -459,39 +516,183 @@ class _PreviewMap extends StatelessWidget {
     start.latitude + (end.latitude - start.latitude) * fraction,
     start.longitude + (end.longitude - start.longitude) * fraction,
   );
-}
 
-class _StopMarker extends StatelessWidget {
-  const _StopMarker({required this.color, required this.icon});
-  final Color color;
-  final IconData icon;
+  /// The user's starting point: the beginning of the first walking segment.
+  LatLng? _originPoint() {
+    if (walkingSegments.isNotEmpty && walkingSegments.first.isNotEmpty) {
+      return walkingSegments.first.first;
+    }
+    return null;
+  }
 
-  @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      shape: BoxShape.circle,
-      boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8)],
-    ),
-    child: Icon(icon, color: color, size: 25),
-  );
+  /// Picks at most 4 evenly-spaced intermediate stops across all legs so the
+  /// map stays readable instead of labelling every single stop.
+  List<Marker> _sampledStopMarkers(List<_LegSegment> segments) {
+    final intermediates = <Map<String, dynamic>>[];
+    for (final segment in segments) {
+      for (var i = 1; i < segment.rawStops.length - 1; i++) {
+        intermediates.add(segment.rawStops[i]);
+      }
+    }
+    if (intermediates.isEmpty) return const [];
+
+    const maxLabels = 4;
+    final selected = <Map<String, dynamic>>[];
+    if (intermediates.length <= maxLabels) {
+      selected.addAll(intermediates);
+    } else {
+      final step = intermediates.length / maxLabels;
+      for (var i = 0; i < maxLabels; i++) {
+        selected.add(intermediates[(i * step).floor()]);
+      }
+    }
+
+    return selected.map((stop) => Marker(
+      point: LatLng((stop['latitude'] as num).toDouble(), (stop['longitude'] as num).toDouble()),
+      width: 150, height: 52,
+      alignment: Alignment.center,
+      child: _BusStopMarker(label: stop['name'].toString()),
+    )).toList();
+  }
 }
 
 class _TransferMarker extends StatelessWidget {
-  const _TransferMarker({required this.color, required this.label});
-  final Color color;
+  const _TransferMarker({required this.stopName});
+  final String stopName;
+
+  static const _accent = Color(0xFFD97706);
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: _accent,
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 5, offset: Offset(0, 2))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.sync_alt, size: 11, color: Colors.white),
+          const SizedBox(width: 3),
+          Flexible(child: Text(stopName, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white))),
+        ]),
+      ),
+      const SizedBox(height: 1),
+      const Text('Change bus', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: _accent)),
+      const SizedBox(height: 2),
+      Container(
+        width: 26, height: 26,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(color: _accent, width: 2.5),
+          boxShadow: [BoxShadow(color: _accent.withValues(alpha: 0.25), blurRadius: 6)],
+        ),
+        child: const Icon(Icons.sync_alt, size: 14, color: _accent),
+      ),
+    ],
+  );
+}
+
+class _BusStopMarker extends StatelessWidget {
+  const _BusStopMarker({required this.label, this.accent = const Color(0xFF006495)});
+  final String label;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: const Color(0xFFC0C7CD)),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF4B6275)),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: accent, width: 2),
+            boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.2), blurRadius: 5)],
+          ),
+          child: Icon(Icons.directions_bus, size: 13, color: accent),
+        ),
+      ],
+    );
+  }
+}
+
+// Destination marker: label bubble above a red location pin.
+class _DestinationMarker extends StatelessWidget {
+  const _DestinationMarker({required this.label});
   final String label;
 
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      shape: BoxShape.circle,
-      border: Border.all(color: color, width: 2),
-      boxShadow: [BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 6)],
-    ),
-    child: Center(child: Text(label, style: TextStyle(
-      color: color, fontWeight: FontWeight.w800, fontSize: 11,
-    ))),
-  );
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: const Color(0xFFAA3C1A),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: const [BoxShadow(color: Color(0x33AA3C1A), blurRadius: 6)],
+          ),
+          child: const Icon(Icons.location_on, size: 20, color: Color(0xFFAA3C1A)),
+        ),
+      ],
+    );
+  }
+}
+
+// Pulsing origin badge marking the user's starting point.
+class _SourceMarker extends StatelessWidget {
+  const _SourceMarker();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF16806B),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: const [BoxShadow(color: Color(0x5516806B), blurRadius: 10, spreadRadius: 1)],
+      ),
+      child: const Icon(Icons.my_location, color: Colors.white, size: 20),
+    );
+  }
 }

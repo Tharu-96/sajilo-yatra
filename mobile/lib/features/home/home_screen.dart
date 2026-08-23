@@ -84,7 +84,7 @@ class HomeScreen extends StatelessWidget {
                         iconColor: AppColors.sapphireBlue,
                         iconBackground: AppColors.primaryBright,
                         title: 'City Bus',
-                        subtitle: 'Find routes & timings',
+                        subtitle: 'Find routes\n& timings',
                         onTap: () => context.push('/picker'),
                       ),
                     ),
@@ -95,7 +95,7 @@ class HomeScreen extends StatelessWidget {
                         iconColor: AppColors.error,
                         iconBackground: const Color(0xFFFFE1E1),
                         title: 'Emergency',
-                        subtitle: 'Quick help & contacts',
+                        subtitle: 'Quick help\n& contacts',
                         onTap: () => context.push('/profile/emergency'),
                       ),
                     ),
@@ -133,7 +133,10 @@ class HomeScreen extends StatelessWidget {
                         _ExploreCard(place: _places[index]),
                   ),
                 ),
-                const SizedBox(height: 12),
+                // Extra padding at the bottom ensures the Explore section text
+                // isn't obscured by the floating bottom navigation bar, especially
+                // on shorter devices like the iPhone 12 Pro.
+                const SizedBox(height: 90),
               ],
             ),
           ),
@@ -196,35 +199,40 @@ class _QuickCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.card),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
           child: Column(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: iconBackground,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: iconColor, size: 26),
+                child: Icon(icon, color: iconColor, size: 24),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: AppColors.onSurface,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
               Text(
                 subtitle,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: AppColors.outline,
+                  height: 1.2,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

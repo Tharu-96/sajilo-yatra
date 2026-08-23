@@ -26,7 +26,9 @@ class AuthService {
 
   static const _tokenKey = 'auth_token';
   static const _userKey = 'auth_user';
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
 
   static String get _baseUrl {
     const configuredUrl = String.fromEnvironment('API_BASE_URL');

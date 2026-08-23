@@ -16,7 +16,6 @@ def search_routes(request: RouteSearchRequest, db: Session = Depends(get_db)):
         origin_lng=request.origin_lng,
         dest_lat=request.dest_lat,
         dest_lng=request.dest_lng,
-        preference=request.preference
     )
     
     return RouteSearchResponse(

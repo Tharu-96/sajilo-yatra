@@ -1,12 +1,12 @@
 import unittest
-import json
-import urllib.request
-import urllib.error
+from fastapi.testclient import TestClient
+from app.main import app
+
 
 class TestRoutingEndpoint(unittest.TestCase):
     def setUp(self):
-        self.url = "http://127.0.0.1:8000/api/routes/search"
-        self.headers = {'Content-Type': 'application/json'}
+        self.client = TestClient(app)
+        self.url = "/api/routes/search"
         self.req_shortest = {
             "origin_lat": 27.7058,
             "origin_lng": 85.3148,
@@ -30,16 +30,8 @@ class TestRoutingEndpoint(unittest.TestCase):
         }
 
     def _post(self, payload):
-        req = urllib.request.Request(self.url, data=json.dumps(payload).encode('utf-8'), headers=self.headers)
-        try:
-            with urllib.request.urlopen(req) as response:
-                return response.status, json.loads(response.read().decode('utf-8'))
-        except urllib.error.HTTPError as e:
-            raw = e.read().decode('utf-8')
-            try:
-                return e.code, json.loads(raw)
-            except:
-                return e.code, raw
+        response = self.client.post(self.url, json=payload)
+        return response.status_code, response.json()
 
     def test_search_shortest(self):
         status, data = self._post(self.req_shortest)
@@ -61,6 +53,7 @@ class TestRoutingEndpoint(unittest.TestCase):
     def test_search_least_walking(self):
         status, data = self._post(self.req_walking)
         self.assertEqual(status, 200, f"Error: {data}")
+
 
 if __name__ == '__main__':
     unittest.main()
