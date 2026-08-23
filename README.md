@@ -54,7 +54,7 @@ To run this project locally, you will need to set up both the backend server and
 4. **Environment Variables**: Create a `.env` file in the `backend` directory. **(Do not use real production secrets here!)**
    ```env
    # .env
-   DATABASE_URL=postgresql://<db_user>:<db_password>@localhost:5432/sajiloyatra
+   DATABASE_URL=postgresql://<db_user>:<db_password>@localhost:5432/<db_name>
    SECRET_KEY=generate_a_random_secret_string_here
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=30
