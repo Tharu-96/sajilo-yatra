@@ -161,6 +161,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   Future<void> _findRoutes() async {
+    FocusScope.of(context).unfocus();
+
     final fromText = _fromController.text.trim();
     final toText = _toController.text.trim();
     final isCurrentLocation = _gpsOrigin != null;
