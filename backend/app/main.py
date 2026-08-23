@@ -14,9 +14,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/health", tags=["System"])
+from fastapi.responses import PlainTextResponse
+
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["System"], response_class=PlainTextResponse)
 def health_check():
-    return {"status": "ok", "message": "Sajilo Yatra API is running"}
+    return "OK"
 
 app.include_router(route_finder.router, prefix="/api/routes", tags=["Route Finder"])
 app.include_router(stops.router, prefix="/api/stops", tags=["Stops"])
