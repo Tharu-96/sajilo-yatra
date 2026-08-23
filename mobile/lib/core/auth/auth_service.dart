@@ -25,6 +25,7 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   static const _tokenKey = 'auth_token';
+  static const _userKey = 'auth_user';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   static String get _baseUrl {
@@ -44,17 +45,31 @@ class AuthService {
     final storedToken = await _storage.read(key: _tokenKey);
     if (storedToken == null || storedToken.isEmpty) return null;
 
+    // 1. Immediately restore cached user from local disk with 0ms delay
+    final rawUser = await _storage.read(key: _userKey);
+    AuthUser? cachedUser;
+    if (rawUser != null && rawUser.isNotEmpty) {
+      try {
+        cachedUser = AuthUser.fromJson(jsonDecode(rawUser) as Map<String, dynamic>);
+        AuthChangeNotifier.instance.setLoggedIn(cachedUser);
+      } catch (_) {}
+    }
+
+    // 2. Validate / refresh session with backend
     try {
       final user = await _fetchCurrentUser(storedToken);
+      await _storage.write(key: _userKey, value: jsonEncode(user.toJson()));
       AuthChangeNotifier.instance.setLoggedIn(user);
       return user;
     } on AuthException {
-      // Token is invalid or expired: clear it so the user re-authenticates.
+      // Token is invalid or explicitly rejected: clear it so the user re-authenticates.
       await _storage.delete(key: _tokenKey);
+      await _storage.delete(key: _userKey);
+      AuthChangeNotifier.instance.setLoggedOut();
       return null;
     } catch (_) {
-      // Network error at startup: keep the token, treat as logged out for now.
-      return null;
+      // Network timeout / offline: keep user logged in with cached identity
+      return cachedUser;
     }
   }
 
@@ -108,6 +123,7 @@ class AuthService {
 
   Future<void> logout() async {
     await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _userKey);
     AuthChangeNotifier.instance.setLoggedOut();
   }
 
@@ -190,6 +206,7 @@ class AuthService {
       final accessToken = data['access_token'] as String;
       final user = AuthUser.fromJson(data['user'] as Map<String, dynamic>);
       await _storage.write(key: _tokenKey, value: accessToken);
+      await _storage.write(key: _userKey, value: jsonEncode(user.toJson()));
       AuthChangeNotifier.instance.setLoggedIn(user);
       return user;
     }

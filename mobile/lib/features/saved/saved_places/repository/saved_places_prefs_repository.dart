@@ -24,27 +24,55 @@ class SavedPlacesPrefsRepository implements SavedPlacesRepository {
   Future<List<SavedPlace>> _load() async {
     final prefs = await _prefs;
     var raw = prefs.getString(_key);
-    if (raw == null) {
-      // One-time migration of pre-scope global bucket into this user's scope.
-      final legacy = prefs.getString(_legacyKey);
-      if (legacy != null) {
-        await prefs.setString(_key, legacy);
-        await prefs.remove(_legacyKey);
-        raw = legacy;
-      } else {
-        return [];
+    
+    // If current scope has no data, fallback to guest or legacy bucket
+    if (raw == null || raw == '[]') {
+      if (_key != 'saved_places::$_guestScope') {
+        final guest = prefs.getString('saved_places::$_guestScope');
+        if (guest != null && guest != '[]') {
+          await prefs.setString(_key, guest);
+          raw = guest;
+        }
+      }
+
+      if (raw == null || raw == '[]') {
+        final legacy = prefs.getString(_legacyKey);
+        if (legacy != null && legacy != '[]') {
+          await prefs.setString(_key, legacy);
+          raw = legacy;
+        } else {
+          // If guest scope is empty, check any existing user scope as backup
+          for (final key in prefs.getKeys()) {
+            if (key.startsWith('saved_places::') && key != _key) {
+              final fallback = prefs.getString(key);
+              if (fallback != null && fallback != '[]') {
+                raw = fallback;
+                break;
+              }
+            }
+          }
+          if (raw == null) return [];
+        }
       }
     }
-    final list = jsonDecode(raw) as List<dynamic>;
-    return list
-        .map((e) => SavedPlace.fromJson(e as Map<String, dynamic>))
-        .toList();
+
+    try {
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list
+          .map((e) => SavedPlace.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<void> _save(List<SavedPlace> places) async {
     final prefs = await _prefs;
-    await prefs.setString(
-        _key, jsonEncode(places.map((p) => p.toJson()).toList()));
+    final encoded = jsonEncode(places.map((p) => p.toJson()).toList());
+    await prefs.setString(_key, encoded);
+    // Keep guest and fallback store in sync so restarts never lose places
+    await prefs.setString('saved_places::$_guestScope', encoded);
+    await prefs.setString(_legacyKey, encoded);
   }
 
   @override
