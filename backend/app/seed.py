@@ -7,17 +7,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def seed_db():
-    logger.info("Creating tables...")
-    Base.metadata.create_all(bind=engine)
+    try:
+        logger.info("Creating tables...")
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.warning(f"Notice during create_all: {e}")
 
     # create_all does not add new columns to existing tables. Keep this small
     # compatibility migration here until a dedicated migration tool is added.
-    with engine.begin() as connection:
-        columns = {column["name"] for column in inspect(engine).get_columns("users")}
-        if "profile_image_filename" not in columns:
-            connection.execute(
-                text("ALTER TABLE users ADD COLUMN profile_image_filename VARCHAR(255)")
-            )
+    try:
+        with engine.begin() as connection:
+            columns = {column["name"] for column in inspect(engine).get_columns("users")}
+            if "profile_image_filename" not in columns:
+                connection.execute(
+                    text("ALTER TABLE users ADD COLUMN profile_image_filename VARCHAR(255)")
+                )
+    except Exception as e:
+        logger.warning(f"Notice during schema column check: {e}")
     
     db = SessionLocal()
     
