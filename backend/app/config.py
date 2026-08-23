@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: str = ""
     support_email: str = ""
+    brevo_api_key: str = ""
 
     # Authentication. jwt_secret_key MUST be overridden in production via env.
     jwt_secret_key: str = "CHANGE_ME_IN_PRODUCTION_use_a_long_random_secret"
