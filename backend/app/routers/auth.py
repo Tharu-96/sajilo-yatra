@@ -149,7 +149,7 @@ def forgot_password(
     except Exception as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Unable to send reset code right now. Please try again later.",
+            detail=f"Unable to send reset code right now. Error: {str(error)}",
         ) from error
 
     return generic_response
