@@ -51,12 +51,9 @@ def send_feedback(
     )
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
-            smtp.starttls()
-            smtp.login(settings.smtp_username, settings.smtp_password)
-            smtp.send_message(email)
-    except (OSError, smtplib.SMTPException) as error:
-        # Do not reveal SMTP details or credentials to clients.
+        from ..services.email_service import send_email_message
+        send_email_message(email)
+    except Exception as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Unable to send feedback right now. Please try again later.",

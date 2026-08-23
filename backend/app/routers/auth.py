@@ -63,6 +63,10 @@ def _to_user_out(user: User) -> UserOut:
     return UserOut(id=user.id, name=user.name, email=user.email)
 
 
+
+
+
+
 def _issue_token(user: User) -> Token:
     access_token = create_access_token(subject=user.id)
     return Token(access_token=access_token, user=_to_user_out(user))
@@ -140,11 +144,9 @@ def forgot_password(
     )
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
-            smtp.starttls()
-            smtp.login(settings.smtp_username, settings.smtp_password)
-            smtp.send_message(message)
-    except (OSError, smtplib.SMTPException) as error:
+        from ..services.email_service import send_email_message
+        send_email_message(message)
+    except Exception as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Unable to send reset code right now. Please try again later.",
