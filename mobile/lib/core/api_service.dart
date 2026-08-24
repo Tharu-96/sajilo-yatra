@@ -113,15 +113,53 @@ class ApiService {
     return points.cast<Map<String, dynamic>>();
   }
 
-  static Future<List<Map<String, dynamic>>> searchStops(String query, {int limit = 10}) async {
+  // Completed prefix searches keyed by lowercased query, so extending or
+  // repeating a query can be served instantly without hitting the network.
+  static final Map<String, List<Map<String, dynamic>>> _stopSearchCache = {};
+  static const int _stopSearchLimit = 100;
+
+  /// Returns stop matches for [query] from the local cache without any network
+  /// call, or null when no complete cached result can satisfy it. Matching is a
+  /// case-insensitive prefix match, so "ka" is reused to answer "kat".
+  static List<Map<String, dynamic>>? cachedStopSearch(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+
+    final exact = _stopSearchCache[q];
+    if (exact != null) return exact;
+
+    for (var len = q.length - 1; len >= 1; len--) {
+      final base = _stopSearchCache[q.substring(0, len)];
+      // A non-truncated base holds every match for its prefix, so it is safe
+      // to narrow locally; a truncated one might be missing later matches.
+      if (base != null && base.length < _stopSearchLimit) {
+        final narrowed = base
+            .where((s) => (s['name'] as String).toLowerCase().startsWith(q))
+            .toList();
+        _stopSearchCache[q] = narrowed;
+        return narrowed;
+      }
+    }
+    return null;
+  }
+
+  static Future<List<Map<String, dynamic>>> searchStops(String query, {int limit = _stopSearchLimit}) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+
+    final cached = cachedStopSearch(trimmed);
+    if (cached != null) return cached;
+
     final url = Uri.parse('$_baseUrl/stops/search').replace(
-      queryParameters: {'q': query.trim(), 'limit': limit.toString()},
+      queryParameters: {'q': trimmed, 'limit': limit.toString()},
     );
     final response = await http.get(url);
 
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
-      return data.cast<Map<String, dynamic>>();
+      final results = data.cast<Map<String, dynamic>>();
+      _stopSearchCache[trimmed.toLowerCase()] = results;
+      return results;
     }
     throw Exception('Failed to search stops: ${response.statusCode}');
   }

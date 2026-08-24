@@ -61,6 +61,11 @@ class SavedPlacesScreen extends ConsumerWidget {
                   place: place,
                   icon: place.icon.icon,
                   onMorePressed: () => _showOptions(context, ref, place),
+                  onTap: () => context.push('/nearby-place', extra: {
+                    'lat': place.latitude,
+                    'lng': place.longitude,
+                    'label': place.name,
+                  }),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -205,15 +210,19 @@ class SavedPlacesScreen extends ConsumerWidget {
 }
 
 class _PlaceCard extends StatelessWidget {
-  const _PlaceCard({required this.place, required this.icon, required this.onMorePressed});
+  const _PlaceCard({required this.place, required this.icon, required this.onMorePressed, this.onTap});
   final SavedPlace place;
   final IconData icon;
   final VoidCallback onMorePressed;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLowest,
@@ -247,6 +256,7 @@ class _PlaceCard extends StatelessWidget {
           ),
           IconButton(icon: Icon(Icons.more_vert, color: scheme.outline), onPressed: onMorePressed),
         ],
+      ),
       ),
     );
   }

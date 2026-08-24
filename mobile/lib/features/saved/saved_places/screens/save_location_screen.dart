@@ -95,7 +95,7 @@ class _SaveLocationScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            e.toString(),
+            e.toString().replaceFirst('Exception: ', ''),
           ),
         ),
       );
@@ -229,7 +229,7 @@ class _SaveLocationScreenState
               TextField(
                 controller: _nameController,
                 decoration: InputDecoration(
-                  hintText: 'e.g. Home, Office, Gym',
+                  hintText: 'e.g. Home, Office, Gym, playground',
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(

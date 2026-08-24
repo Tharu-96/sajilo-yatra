@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../features/splash/splash_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
@@ -115,6 +116,20 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         final route = state.extra as Map<String, dynamic>? ?? {};
         return BusOptionsScreen(route: route);
+      },
+    ),
+    GoRoute(
+      path: '/nearby-place',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>? ?? {};
+        return NearbyStopsScreen(
+          originLocation: LatLng(
+            (extra['lat'] as num).toDouble(),
+            (extra['lng'] as num).toDouble(),
+          ),
+          originLabel: extra['label'] as String?,
+        );
       },
     ),
     GoRoute(

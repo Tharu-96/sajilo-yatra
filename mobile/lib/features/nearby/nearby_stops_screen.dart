@@ -13,7 +13,11 @@ import '../saved/saved_places/services/places_service.dart';
 import '../../core/widgets/app_tile_layer.dart';
 
 class NearbyStopsScreen extends StatefulWidget {
-  const NearbyStopsScreen({super.key});
+  const NearbyStopsScreen({super.key, this.originLocation, this.originLabel});
+
+  // When provided, the map centers on this location (e.g. a saved place) instead of GPS.
+  final LatLng? originLocation;
+  final String? originLabel;
 
   @override
   State<NearbyStopsScreen> createState() => _NearbyStopsScreenState();
@@ -42,7 +46,15 @@ class _NearbyStopsScreenState extends State<NearbyStopsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCurrentLocation();
+    final origin = widget.originLocation;
+    if (origin != null) {
+      _center = origin;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _updateCenter(origin);
+      });
+    } else {
+      _loadCurrentLocation();
+    }
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -111,8 +123,13 @@ class _NearbyStopsScreenState extends State<NearbyStopsScreen> {
         _isLoading = false;
       });
       if (stops.isEmpty && mounted) {
+        final label = widget.originLabel;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('sorry stops not found, search the location within the kathmandu valley only')),
+          SnackBar(
+            content: Text(label != null
+                ? 'No nearby bus stops found within 1000m of $label'
+                : 'sorry stops not found, search the location within the kathmandu valley only'),
+          ),
         );
       }
     } catch (e) {
@@ -294,9 +311,25 @@ class _NearbyStopsScreenState extends State<NearbyStopsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Nearby Stops',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () async {
+                                  // Return to the previous screen if pushed here;
+                                  // otherwise reset the map to the user's own location.
+                                  final popped = await Navigator.of(context).maybePop();
+                                  if (!popped && mounted) _loadCurrentLocation();
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Nearby Stops',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            ],
                           ),
                           Row(
                             children: [

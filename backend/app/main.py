@@ -29,4 +29,16 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 def startup_event():
     print("Initializing database and seeding...")
     seed_db()
+    # Pre-build the routing graph so the first search doesn't pay the load cost.
+    try:
+        from .database import SessionLocal
+        from .services.routing_engine import _load_graph
+        db = SessionLocal()
+        try:
+            _load_graph(db)
+        finally:
+            db.close()
+        print("Routing graph warmed.")
+    except Exception as exc:
+        print(f"Routing graph warm-up skipped: {exc}")
     print("Startup complete.")

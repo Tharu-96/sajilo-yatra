@@ -82,19 +82,16 @@ class SavedPlacesNotifier extends AsyncNotifier<List<SavedPlace>> {
   Future<void> addPlace(
     SavedPlace place,
   ) async {
-    final currentPlaces = state.value ?? [];
+    // Keep the existing list intact; on failure the error propagates to the
+    // caller (so it can be shown) instead of wiping the state into an error.
+    final currentPlaces = state.value ?? await _repository.getSavedPlaces();
 
-    state = const AsyncLoading();
+    final createdPlace = await _repository.createSavedPlace(place);
 
-    state = await AsyncValue.guard(() async {
-      final createdPlace =
-          await _repository.createSavedPlace(place);
-
-      return [
-        ...currentPlaces,
-        createdPlace,
-      ];
-    });
+    state = AsyncData([
+      ...currentPlaces,
+      createdPlace,
+    ]);
   }
 
   /// Update an existing place.

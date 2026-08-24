@@ -109,16 +109,25 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   Future<Iterable<Map<String, dynamic>>> _searchFrom(String query) async {
-    if (query.length < 2) return const Iterable.empty();
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const Iterable.empty();
+
+    // Serve cached/narrowed matches instantly and cancel any pending fetch.
+    final cached = ApiService.cachedStopSearch(trimmed);
+    if (cached != null) {
+      _fromDebounce?.cancel();
+      _fromRequestId++;
+      return cached;
+    }
 
     final completer = Completer<Iterable<Map<String, dynamic>>>();
     _fromDebounce?.cancel();
     _fromRequestId++;
     final currentRequestId = _fromRequestId;
 
-    _fromDebounce = Timer(const Duration(milliseconds: 300), () async {
+    _fromDebounce = Timer(const Duration(milliseconds: 150), () async {
       try {
-        final results = await ApiService.searchStops(query);
+        final results = await ApiService.searchStops(trimmed);
         if (mounted && _fromRequestId == currentRequestId) {
           completer.complete(results);
         } else if (!completer.isCompleted) {
@@ -135,16 +144,25 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   Future<Iterable<Map<String, dynamic>>> _searchTo(String query) async {
-    if (query.length < 2) return const Iterable.empty();
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const Iterable.empty();
+
+    // Serve cached/narrowed matches instantly and cancel any pending fetch.
+    final cached = ApiService.cachedStopSearch(trimmed);
+    if (cached != null) {
+      _toDebounce?.cancel();
+      _toRequestId++;
+      return cached;
+    }
 
     final completer = Completer<Iterable<Map<String, dynamic>>>();
     _toDebounce?.cancel();
     _toRequestId++;
     final currentRequestId = _toRequestId;
 
-    _toDebounce = Timer(const Duration(milliseconds: 300), () async {
+    _toDebounce = Timer(const Duration(milliseconds: 150), () async {
       try {
-        final results = await ApiService.searchStops(query);
+        final results = await ApiService.searchStops(trimmed);
         if (mounted && _toRequestId == currentRequestId) {
           completer.complete(results);
         } else if (!completer.isCompleted) {

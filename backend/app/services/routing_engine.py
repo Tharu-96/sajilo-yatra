@@ -7,7 +7,7 @@ import math
 import time
 from typing import List, Dict, Any, Optional, Tuple, Set
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from app.models import RoutingNode, Stop
 from app.services.fare_engine import calculate_fare
 import networkx as nx
@@ -150,19 +150,29 @@ def _load_graph(db: Session):
         _G_static_edges[edge_id] = dict(row)
         
         cost = float(row["cost_time"]) + float(row["transfer_marker"]) * 3.0
+        # Store only the fields the pathfinder reads; the full row stays in
+        # _G_static_edges so the per-request graph copy stays lightweight.
+        slim = {
+            "base_cost": cost,
+            "edge_id": edge_id,
+            "cost_time": float(row["cost_time"]),
+            "transfer_marker": float(row["transfer_marker"]),
+            "distance_km": float(row["distance_km"]),
+            "is_pedestrian": int(row["is_pedestrian"]),
+        }
         
         if _G.has_edge(u, v):
             if cost < _G[u][v]["base_cost"]:
-                _G[u][v].update({"base_cost": cost, "edge_id": edge_id, **dict(row)})
+                _G[u][v].update(slim)
         else:
-            _G.add_edge(u, v, base_cost=cost, edge_id=edge_id, **dict(row))
+            _G.add_edge(u, v, **slim)
             
         if row["reverse_cost"] is not None and float(row["reverse_cost"]) >= 0:
             if _G.has_edge(v, u):
                 if cost < _G[v][u]["base_cost"]:
-                    _G[v][u].update({"base_cost": cost, "edge_id": edge_id, **dict(row)})
+                    _G[v][u].update(slim)
             else:
-                _G.add_edge(v, u, base_cost=cost, edge_id=edge_id, **dict(row))
+                _G.add_edge(v, u, **slim)
     
     _G_last_loaded = time.time()
     return _G
@@ -346,7 +356,7 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
     # ============================================================
     # FIND NEAREST STOPS
     # ============================================================
-    nearest = """SELECT id, (ST_Distance(geom::geography,
+    nearest = """SELECT id, name, latitude, longitude, (ST_Distance(geom::geography,
         ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) / 1000.0)
         * {mult} AS distance_km
         FROM stops ORDER BY distance_km LIMIT 5""".format(mult=WALKING_DISTANCE_MULTIPLIER)
@@ -365,6 +375,8 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
 
     origin_dist = {r["id"]: float(r["distance_km"]) for r in origins}
     dest_dist = {r["id"]: float(r["distance_km"]) for r in destinations}
+    # Stop coordinates fetched up front to avoid a per-node DB lookup below.
+    origin_stop_info = {r["id"]: r for r in origins}
     
     # ============================================================
     # LOAD GRAPH
@@ -380,13 +392,13 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
     for node in origin_nodes:
         distance = origin_dist[node.stop_id]
         
-        stop = db.query(Stop).filter(Stop.id == node.stop_id).first()
+        stop = origin_stop_info.get(node.stop_id)
         if not stop:
             continue
         
         direction_score = calculate_direction_score_for_origin(
             origin_lat, origin_lng,
-            stop.latitude, stop.longitude,
+            stop["latitude"], stop["longitude"],
             dest_lat, dest_lng
         )
         
@@ -396,7 +408,7 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
         base_time = (distance / 5 * 60)
         cost = base_time + direction_time_penalty
         
-        logger.info(f"Origin -> Stop {stop.name or node.stop_id}: "
+        logger.info(f"Origin -> Stop {stop['name'] or node.stop_id}: "
                    f"dist={distance:.3f}km, dir_score={direction_score:.3f}, cost={cost:.1f}min")
         
         edge_id = -100000 - node.id
@@ -454,11 +466,26 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
     # ============================================================
     # LOAD STOP ORDERS FOR PHANTOM TRANSFER DETECTION
     # ============================================================
-    stop_orders_rows = db.execute(text(
-        "SELECT rs.route_id, rs.stop_id, s.name AS stop_name, rs.stop_order, "
-        "COALESCE(rs.distance_from_prev_km, 0) AS distance_from_prev_km "
-        "FROM route_stops rs JOIN stops s ON s.id = rs.stop_id"
-    )).mappings().all()
+    # Only load stop orders for routes that actually appear in the candidate
+    # pool instead of scanning the entire route_stops table.
+    pool_route_ids = list({
+        leg["route_id"]
+        for route in pool
+        for leg in route["legs"]
+        if leg["mode"] == "bus" and leg.get("route_id")
+    })
+    if pool_route_ids:
+        stop_orders_rows = db.execute(
+            text(
+                "SELECT rs.route_id, rs.stop_id, s.name AS stop_name, rs.stop_order, "
+                "COALESCE(rs.distance_from_prev_km, 0) AS distance_from_prev_km "
+                "FROM route_stops rs JOIN stops s ON s.id = rs.stop_id "
+                "WHERE rs.route_id IN :route_ids"
+            ).bindparams(bindparam("route_ids", expanding=True)),
+            {"route_ids": pool_route_ids},
+        ).mappings().all()
+    else:
+        stop_orders_rows = []
     
     route_stop_orders: Dict[str, Dict[str, List[int]]] = {}
     route_stop_id_order: Dict[str, Dict[str, int]] = {}
