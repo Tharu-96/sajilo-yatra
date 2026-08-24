@@ -1,11 +1,20 @@
+"""
+Route Engine for finding optimal transit routes.
+Enhanced with direction-aware origin walking and improved phantom transfer detection.
+"""
+
 import math
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple, Set
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.models import RoutingNode
+from app.models import RoutingNode, Stop
 from app.services.fare_engine import calculate_fare
 import networkx as nx
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # PERFORMANCE CONFIGURATION
@@ -13,85 +22,105 @@ import networkx as nx
 
 class RouteEngineConfig:
     """Performance tuning for route engine"""
-    
-    # Graph loading
-    CACHE_GRAPH = True  # Keep graph in memory
-    GRAPH_REFRESH_INTERVAL = 300  # Refresh every 5 minutes
-    
-    # Route finding limits
-    MAX_PATHS_PER_STRATEGY = 10  # Reduced from 30 for speed
+    CACHE_GRAPH = True
+    GRAPH_REFRESH_INTERVAL = 300
+    MAX_PATHS_PER_STRATEGY = 10
     MAX_ROUTES_TO_RETURN = 3
-    
-    # Timeout
-    ROUTE_TIMEOUT_SECONDS = 3
-    
-    # Cache results
     CACHE_ROUTES = True
-    CACHE_TTL = 300  # 5 minutes
+    CACHE_TTL = 300
+    ENABLE_DEBUG = False
 
 # ============================================================
 # CACHE IMPLEMENTATION
 # ============================================================
 
 class RouteCache:
-    """Simple in-memory cache for route results"""
-    
     def __init__(self):
         self.cache = {}
         self.ttl = RouteEngineConfig.CACHE_TTL
     
-    def get(self, key):
-        """Get cached result if valid"""
+    def get(self, key: str) -> Optional[List]:
         if key in self.cache:
             data, timestamp = self.cache[key]
             if time.time() - timestamp < self.ttl:
                 return data
         return None
     
-    def set(self, key, data):
-        """Cache a result"""
+    def set(self, key: str, data: List) -> None:
         self.cache[key] = (data, time.time())
     
-    def clear(self):
-        """Clear all cache"""
+    def clear(self) -> None:
         self.cache.clear()
 
-# Global cache instance
 _route_cache = RouteCache()
 
 # ============================================================
-# GRAPH LOADING WITH CACHING
+# CONSTANTS
 # ============================================================
 
 WALKING_DISTANCE_MULTIPLIER = 1.3
 MICRO_TRANSFER_THRESHOLD_KM = 0.2
+
 _NEPAL_BOUNDS = {
     "lat_min": 26.347, "lat_max": 30.447,
     "lng_min": 80.058, "lng_max": 88.201,
 }
 
-def _is_within_nepal(lat: float, lng: float) -> bool:
-    return (_NEPAL_BOUNDS["lat_min"] <= lat <= _NEPAL_BOUNDS["lat_max"]
-            and _NEPAL_BOUNDS["lng_min"] <= lng <= _NEPAL_BOUNDS["lng_max"])
+_SUGGESTION_PREFERENCES = ("shortest", "fewer_transfers", "least_walking")
+SANITY_TIME_MULTIPLIER = 1.5
+SANITY_TIME_BUFFER_MIN = 15
+
+# ============================================================
+# DIRECTION CALCULATION
+# ============================================================
+
+def calculate_direction_score_for_origin(
+    source_lat: float, source_lon: float,
+    target_lat: float, target_lon: float,
+    dest_lat: float, dest_lon: float
+) -> float:
+    """
+    Calculate how well a target stop aligns with destination direction.
+    Returns 0 (perfect) to 1 (opposite).
+    """
+    dest_bearing = math.atan2(
+        dest_lon - source_lon,
+        dest_lat - source_lat
+    )
+    
+    stop_bearing = math.atan2(
+        target_lon - source_lon,
+        target_lat - source_lat
+    )
+    
+    angle_diff = abs(dest_bearing - stop_bearing)
+    if angle_diff > math.pi:
+        angle_diff = 2 * math.pi - angle_diff
+    
+    return angle_diff / math.pi
+
+# ============================================================
+# GRAPH LOADING
+# ============================================================
 
 _G = None
 _G_static_edges = {}
 _G_last_loaded = 0
 
+def _is_within_nepal(lat: float, lng: float) -> bool:
+    return (_NEPAL_BOUNDS["lat_min"] <= lat <= _NEPAL_BOUNDS["lat_max"]
+            and _NEPAL_BOUNDS["lng_min"] <= lng <= _NEPAL_BOUNDS["lng_max"])
+
 def _load_graph(db: Session):
-    """Load graph with caching for performance"""
     global _G, _G_static_edges, _G_last_loaded
     
-    # Return cached graph if valid
     if _G is not None and RouteEngineConfig.CACHE_GRAPH:
-        # Refresh if needed
         if time.time() - _G_last_loaded < RouteEngineConfig.GRAPH_REFRESH_INTERVAL:
             return _G
     
     _G = nx.DiGraph()
     _G_static_edges = {}
     
-    # OPTIMIZED: Only load necessary columns, add LIMIT
     static_sql = """SELECT e.id, e.source, e.target, e.cost_time, e.distance_km,
         CASE WHEN e.is_transfer = 1 OR EXISTS (
           SELECT 1 FROM transfers t JOIN routing_nodes sn ON sn.id = e.source
@@ -122,14 +151,12 @@ def _load_graph(db: Session):
         
         cost = float(row["cost_time"]) + float(row["transfer_marker"]) * 3.0
         
-        # Only add edge if it's better than existing
         if _G.has_edge(u, v):
             if cost < _G[u][v]["base_cost"]:
                 _G[u][v].update({"base_cost": cost, "edge_id": edge_id, **dict(row)})
         else:
             _G.add_edge(u, v, base_cost=cost, edge_id=edge_id, **dict(row))
             
-        # Handle bidirectional edges
         if row["reverse_cost"] is not None and float(row["reverse_cost"]) >= 0:
             if _G.has_edge(v, u):
                 if cost < _G[v][u]["base_cost"]:
@@ -141,15 +168,7 @@ def _load_graph(db: Session):
     return _G
 
 # ============================================================
-# STRATEGY CONFIGURATION
-# ============================================================
-
-_SUGGESTION_PREFERENCES = ("shortest", "fewer_transfers", "least_walking")
-SANITY_TIME_MULTIPLIER = 1.5
-SANITY_TIME_BUFFER_MIN = 15
-
-# ============================================================
-# OPTIMIZED ROUTE COLLECTION
+# ROUTE COLLECTION
 # ============================================================
 
 def _collect_routes(G, dynamic_edges, preference, origin_lat, origin_lng, dest_lat, dest_lng,
@@ -172,15 +191,12 @@ def _collect_routes(G, dynamic_edges, preference, origin_lat, origin_lng, dest_l
             return cost_time + (transfer_marker * 3.0)
 
     try:
-        # OPTIMIZED: Limit paths found
         paths = nx.shortest_simple_paths(G, -1, -2, weight=weight_func)
     except nx.NetworkXNoPath:
         return
 
     added = 0
     path_id = 0
-    
-    # OPTIMIZED: Reduce max paths
     max_paths = RouteEngineConfig.MAX_PATHS_PER_STRATEGY
     
     for path in paths:
@@ -254,7 +270,6 @@ def _collect_routes(G, dynamic_edges, preference, origin_lat, origin_lng, dest_l
 
         transfers = max(0, len(buses) - 1)
         
-        # Check for micro transfers
         has_micro_transfer = False
         for idx, leg in enumerate(legs):
             if leg["mode"] == "walk" and idx > 0 and idx < len(legs) - 1:
@@ -303,17 +318,15 @@ def _collect_routes(G, dynamic_edges, preference, origin_lat, origin_lng, dest_l
             break
 
 # ============================================================
-# OPTIMIZED ROUTE FINDING WITH CACHING
+# MAIN ROUTE FINDING FUNCTION
 # ============================================================
 
 def find_routes(db: Session, origin_lat: float, origin_lng: float, 
                 dest_lat: float, dest_lng: float, preference: str = "shortest"):
     """
-    Find routes with PERFORMANCE OPTIMIZATIONS:
-    - Caching
-    - Limited search depth
-    - Faster graph loading
+    Find routes with direction-aware origin walking and improved phantom transfer detection.
     """
+    
     origin_lat, origin_lng = float(origin_lat), float(origin_lng)
     dest_lat, dest_lng = float(dest_lat), float(dest_lng)
 
@@ -321,7 +334,7 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
         return []
 
     # ============================================================
-    # CHECK CACHE FIRST
+    # CHECK CACHE
     # ============================================================
     cache_key = f"{origin_lat:.4f}:{origin_lng:.4f}:{dest_lat:.4f}:{dest_lng:.4f}:{preference}"
     
@@ -331,22 +344,21 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
             return cached
 
     # ============================================================
-    # FIND NEAREST STOPS (OPTIMIZED)
+    # FIND NEAREST STOPS
     # ============================================================
     nearest = """SELECT id, (ST_Distance(geom::geography,
         ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) / 1000.0)
         * {mult} AS distance_km
-        FROM stops ORDER BY distance_km LIMIT 1""".format(mult=WALKING_DISTANCE_MULTIPLIER)
+        FROM stops ORDER BY distance_km LIMIT 5""".format(mult=WALKING_DISTANCE_MULTIPLIER)
     
     origins = db.execute(text(nearest), {"lat": origin_lat, "lng": origin_lng}).mappings().all()
     destinations = db.execute(text(nearest), {"lat": dest_lat, "lng": dest_lng}).mappings().all()
     
-    # OPTIMIZED: Only get necessary nodes
-    origin_ids = [r["id"] for r in origins]
-    dest_ids = [r["id"] for r in destinations]
+    origin_stop_ids = [r["id"] for r in origins]
+    dest_stop_ids = [r["id"] for r in destinations]
     
-    origin_nodes = db.query(RoutingNode).filter(RoutingNode.stop_id.in_(origin_ids)).all()
-    dest_nodes = db.query(RoutingNode).filter(RoutingNode.stop_id.in_(dest_ids)).all()
+    origin_nodes = db.query(RoutingNode).filter(RoutingNode.stop_id.in_(origin_stop_ids)).all()
+    dest_nodes = db.query(RoutingNode).filter(RoutingNode.stop_id.in_(dest_stop_ids)).all()
     
     if not origin_nodes or not dest_nodes:
         return []
@@ -355,25 +367,56 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
     dest_dist = {r["id"]: float(r["distance_km"]) for r in destinations}
     
     # ============================================================
-    # LOAD GRAPH (CACHED)
+    # LOAD GRAPH
     # ============================================================
     G = _load_graph(db).copy()
     dynamic_edges = {}
     
-    # Add origin walking edges
+    # ============================================================
+    # ORIGIN WALKING EDGES WITH DIRECTION PENALTY
+    # ============================================================
+    logger.info("Creating origin walking edges with direction awareness...")
+    
     for node in origin_nodes:
         distance = origin_dist[node.stop_id]
-        cost = (distance / 5 * 60)
+        
+        stop = db.query(Stop).filter(Stop.id == node.stop_id).first()
+        if not stop:
+            continue
+        
+        direction_score = calculate_direction_score_for_origin(
+            origin_lat, origin_lng,
+            stop.latitude, stop.longitude,
+            dest_lat, dest_lng
+        )
+        
+        direction_penalty_km = (direction_score ** 1.5) * 0.15
+        direction_time_penalty = (direction_score ** 1.5) * 3.0
+        
+        base_time = (distance / 5 * 60)
+        cost = base_time + direction_time_penalty
+        
+        logger.info(f"Origin -> Stop {stop.name or node.stop_id}: "
+                   f"dist={distance:.3f}km, dir_score={direction_score:.3f}, cost={cost:.1f}min")
+        
         edge_id = -100000 - node.id
-        G.add_edge(-1, node.id, cost_time=cost, transfer_marker=0, distance_km=distance, is_pedestrian=1, edge_id=edge_id)
+        G.add_edge(-1, node.id, 
+                   cost_time=cost, 
+                   transfer_marker=0, 
+                   distance_km=distance, 
+                   is_pedestrian=1, 
+                   edge_id=edge_id)
         dynamic_edges[edge_id] = {
-            "source": -1, "target": node.id, "cost_time": cost, "distance_km": distance,
+            "source": -1, "target": node.id, 
+            "cost_time": cost, "distance_km": distance,
             "transfer_marker": 0, "is_pedestrian": 1, "route_id": None,
             "from_stop_id": None, "to_stop_id": node.stop_id,
             "from_stop": None, "to_stop": "Origin", "route_name": None, "operator_name": None
         }
         
-    # Add destination walking edges
+    # ============================================================
+    # DESTINATION WALKING EDGES
+    # ============================================================
     for node in dest_nodes:
         distance = dest_dist[node.stop_id]
         cost = (distance / 5 * 60)
@@ -387,11 +430,10 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
         }
 
     # ============================================================
-    # RUN STRATEGIES (PARALLEL OPTIMIZED)
+    # RUN STRATEGIES
     # ============================================================
     pool, seen_signatures, seen_itineraries = [], set(), set()
     
-    # OPTIMIZED: Only run relevant strategies
     strategies = _SUGGESTION_PREFERENCES
     if preference in strategies:
         strategies = (preference,) + tuple(s for s in strategies if s != preference)
@@ -403,7 +445,6 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
             pool, seen_signatures, seen_itineraries,
         )
         
-        # Early exit if we have enough routes
         if len(pool) >= RouteEngineConfig.MAX_ROUTES_TO_RETURN * 2:
             break
 
@@ -411,11 +452,8 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
         return []
 
     # ============================================================
-    # PROCESS ROUTES (SAME AS ORIGINAL)
+    # LOAD STOP ORDERS FOR PHANTOM TRANSFER DETECTION
     # ============================================================
-    # ... (keep all the existing post-processing code) ...
-    
-    # Load stop orders for phantom transfer detection
     stop_orders_rows = db.execute(text(
         "SELECT rs.route_id, rs.stop_id, s.name AS stop_name, rs.stop_order, "
         "COALESCE(rs.distance_from_prev_km, 0) AS distance_from_prev_km "
@@ -423,32 +461,38 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
     )).mappings().all()
     
     route_stop_orders: Dict[str, Dict[str, List[int]]] = {}
-    route_stop_id_order: Dict[str, Dict[Any, int]] = {}
+    route_stop_id_order: Dict[str, Dict[str, int]] = {}
     route_seq: Dict[str, List[Dict[str, Any]]] = {}
     
     for row in stop_orders_rows:
-        route_stop_orders.setdefault(row["route_id"], {}).setdefault(row["stop_name"], []).append(row["stop_order"])
-        route_stop_id_order.setdefault(row["route_id"], {})[row["stop_id"]] = row["stop_order"]
-        route_seq.setdefault(row["route_id"], []).append(
+        route_id = row["route_id"]
+        stop_id = row["stop_id"]
+        stop_name = row["stop_name"]
+        
+        route_stop_orders.setdefault(route_id, {}).setdefault(stop_name, []).append(row["stop_order"])
+        route_stop_id_order.setdefault(route_id, {})[stop_id] = row["stop_order"]
+        route_seq.setdefault(route_id, []).append(
             {"order": row["stop_order"], "distance": float(row["distance_from_prev_km"] or 0)})
+    
     for seq in route_seq.values():
         seq.sort(key=lambda s: s["order"])
 
-    def _route_reaches(route_id, board_name, dest_name):
+    def _route_reaches(route_id: str, board_name: str, dest_name: str) -> bool:
         stops = route_stop_orders.get(route_id, {})
         board_orders, dest_orders = stops.get(board_name), stops.get(dest_name)
         if not board_orders or not dest_orders:
             return False
         return max(dest_orders) > min(board_orders)
 
-    def _continuous_span(route_id, from_stop_id, to_stop_id):
+    def _continuous_span(route_id: str, from_stop_id: str, to_stop_id: str) -> Optional[Tuple[int, int]]:
         orders = route_stop_id_order.get(route_id, {})
         board, alight = orders.get(from_stop_id), orders.get(to_stop_id)
         if board is None or alight is None or alight <= board:
             return None
         return board, alight
 
-    def _collapse_phantom(route):
+    def _collapse_phantom(route: Dict[str, Any]) -> None:
+        """Merge consecutive legs that could be ridden on a single line"""
         legs = list(route["legs"])
         changed = True
         while changed:
@@ -489,10 +533,65 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
         route["total_time_min"] = math.ceil(sum(l["duration_min"] for l in legs))
         route["walking_distance_km"] = round(sum(l["distance_km"] for l in legs if l["mode"] == "walk"), 2)
 
+    # ============================================================
+    # IMPROVED PHANTOM TRANSFER DETECTION
+    # ============================================================
+    
+    def _is_phantom_transfer(route: Dict[str, Any]) -> bool:
+        """
+        Enhanced phantom transfer detection.
+        Detects when a transfer is unnecessary because:
+        1. A single bus already covers the entire trip
+        2. An earlier bus already reaches a later bus's destination
+        3. Transfer is between the same route (duplicate stops)
+        """
+        bus_legs = [l for l in route["legs"] if l["mode"] == "bus"]
+        
+        # If 0 or 1 bus leg, no transfer
+        if len(bus_legs) < 2:
+            return False
+        
+        # Get trip origin and destination
+        trip_origin = bus_legs[0]["from_stop"]
+        trip_dest = bus_legs[-1]["to_stop"]
+        
+        # Check 1: Any single bus spans the entire trip?
+        for leg in bus_legs:
+            if _route_reaches(leg["route_id"], trip_origin, trip_dest):
+                return True
+        
+        # Check 2: Any earlier bus reaches a later leg's destination?
+        for i in range(len(bus_legs)):
+            for j in range(i + 1, len(bus_legs)):
+                if _route_reaches(bus_legs[i]["route_id"], 
+                                bus_legs[i]["from_stop"], 
+                                bus_legs[j]["to_stop"]):
+                    return True
+        
+        # Check 3: Same route repeated with different stop IDs
+        route_ids = [leg["route_id"] for leg in bus_legs]
+        if len(route_ids) != len(set(route_ids)):
+            return True
+        
+        # Check 4: Consecutive legs on same route (should have been merged)
+        for i in range(len(bus_legs) - 1):
+            if bus_legs[i]["route_id"] == bus_legs[i + 1]["route_id"]:
+                return True
+        
+        return False
+
+    # Apply phantom collapse to all routes first
     for route in pool:
         _collapse_phantom(route)
 
-    # Deduplicate
+    # Then filter out phantom transfers
+    filtered = [route for route in pool if not _is_phantom_transfer(route)]
+    if filtered:
+        pool = filtered
+
+    # ============================================================
+    # DEDUPLICATE ROUTES
+    # ============================================================
     deduped, seen = [], set()
     for route in pool:
         sig = tuple((l["mode"], l.get("from_stop_id"), l.get("to_stop_id")) for l in route["legs"])
@@ -502,29 +601,16 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
         deduped.append(route)
     pool = deduped
 
-    def _is_phantom_transfer(route):
-        bus_legs = [l for l in route["legs"] if l["mode"] == "bus"]
-        if len(bus_legs) < 2:
-            return False
-        trip_origin, trip_dest = bus_legs[0]["from_stop"], bus_legs[-1]["to_stop"]
-        if any(_route_reaches(l["route_id"], trip_origin, trip_dest) for l in bus_legs):
-            return True
-        for i in range(len(bus_legs)):
-            for j in range(i + 1, len(bus_legs)):
-                if _route_reaches(bus_legs[i]["route_id"], bus_legs[i]["from_stop"], bus_legs[j]["to_stop"]):
-                    return True
-        return False
-
-    filtered = [route for route in pool if not _is_phantom_transfer(route)]
-    if filtered:
-        pool = filtered
-
-    # Filter by sanity
+    # ============================================================
+    # SANITY CHECK
+    # ============================================================
     fastest = min(route["total_time_min"] for route in pool)
     threshold = fastest * SANITY_TIME_MULTIPLIER + SANITY_TIME_BUFFER_MIN
     sane = [route for route in pool if route["total_time_min"] <= threshold]
 
-    # Sort and return top results
+    # ============================================================
+    # SORT AND RETURN
+    # ============================================================
     sane.sort(key=lambda r: (r["total_time_min"], r["transfer_count"], r["walking_distance_km"]))
     results = sane[:RouteEngineConfig.MAX_ROUTES_TO_RETURN]
     
@@ -541,12 +627,10 @@ def find_routes(db: Session, origin_lat: float, origin_lng: float,
     return results
 
 # ============================================================
-# OPTIMIZED BUS OPTIONS
+# BUS OPTIONS FUNCTION
 # ============================================================
 
 def find_bus_options(db: Session, route_id: str, selected_route: Dict[str, Any]):
-    """Get bus options with optimizations"""
-    
     leg = next((leg for leg in selected_route["legs"] if leg.get("route_id") == route_id), None)
     if leg is None:
         return []
@@ -555,7 +639,6 @@ def find_bus_options(db: Session, route_id: str, selected_route: Dict[str, Any])
     if not origin_stop_id or not destination_stop_id:
         return []
 
-    # OPTIMIZED: Simplified query with LIMIT
     candidates = db.execute(text("""
         SELECT r.id, r.name, r.operator, r.vehicle_type, r.color,
                (SELECT terminal.name

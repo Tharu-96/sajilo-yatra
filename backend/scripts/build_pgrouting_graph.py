@@ -165,10 +165,6 @@ def calculate_road_crossing_penalty(
     if distance < RoutingConfig.ROAD_CROSSING_THRESHOLD_KM:
         return 0.0, 0.0
     
-    # Check if stops are on opposite sides of a road
-    # Simple heuristic: if distance is significant, assume road crossing
-    # More sophisticated: use actual road data
-    
     # Distance penalty for detour to crossing point
     distance_penalty = RoutingConfig.ROAD_CROSSING_PENALTY_KM * \
                       RoutingConfig.ROAD_CROSSING_PENALTY_FACTOR
@@ -198,19 +194,19 @@ def get_destination_coordinates() -> Tuple[float, float]:
     return 27.6805, 85.3387
 
 def is_route_direct_to_destination(
-    route_id: int, 
-    current_stop_id: int, 
-    destination_stop_id: int, 
-    route_stop_map: Dict[int, List[RouteStop]]
+    route_id: str, 
+    current_stop_id: str, 
+    destination_stop_id: str, 
+    route_stop_map: Dict[str, List[RouteStop]]
 ) -> bool:
     """
     Check if a route goes directly from current stop to destination
     without needing to transfer.
     
     Args:
-        route_id: ID of the route
-        current_stop_id: Current stop ID
-        destination_stop_id: Destination stop ID
+        route_id: ID of the route (string)
+        current_stop_id: Current stop ID (string)
+        destination_stop_id: Destination stop ID (string)
         route_stop_map: Map of route_id -> list of RouteStop objects
     
     Returns:
@@ -241,7 +237,7 @@ def is_route_direct_to_destination(
 def build_graph(
     destination_lat: Optional[float] = None,
     destination_lon: Optional[float] = None,
-    destination_stop_id: Optional[int] = None
+    destination_stop_id: Optional[str] = None  # FIXED: Changed from int to str
 ) -> Dict[str, Any]:
     """
     Build the routing graph with:
@@ -252,7 +248,7 @@ def build_graph(
     Args:
         destination_lat: Destination latitude (optional)
         destination_lon: Destination longitude (optional)
-        destination_stop_id: Destination stop ID (optional)
+        destination_stop_id: Destination stop ID (optional, string)
     
     Returns:
         Dict with statistics about the built graph
@@ -640,7 +636,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build routing graph for pgRouting')
     parser.add_argument('--dest-lat', type=float, help='Destination latitude')
     parser.add_argument('--dest-lon', type=float, help='Destination longitude')
-    parser.add_argument('--dest-stop', type=int, help='Destination stop ID')
+    parser.add_argument('--dest-stop', type=str, help='Destination stop ID')  # FIXED: Changed to str
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     parser.add_argument('--max-walk', type=float, default=0.25, 
                        help='Maximum walking distance in km (default: 0.25)')
