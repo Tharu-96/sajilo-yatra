@@ -2,6 +2,7 @@
 cloud_db_seed.sql
 *.sql
 *.log
+*.db
 
 # Environment variables
 .env
