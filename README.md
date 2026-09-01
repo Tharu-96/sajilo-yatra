@@ -3,7 +3,7 @@
 Welcome to **Sajilo Yatra**, a comprehensive public transit and routing application that simplifies your daily commute. With an interactive map interface, intelligent route finding, fare calculations, and a secure backend, Sajilo Yatra provides a seamless and cinematic transit experience for everyday commuters.
 
 ### 📱 Download the App
-* [⬇️ Download for Android (APK)](#)
+* [⬇️ Download for Android (APK)](https://github.com/Tharu-96/sajilo-yatra/releases/download/v1.0/app-release.apk)
 * [⬇️ Download for iOS (IPA)](#)
 
 ## 🚀 Key Features
