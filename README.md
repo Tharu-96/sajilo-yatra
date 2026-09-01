@@ -4,7 +4,7 @@ Welcome to **Sajilo Yatra**, a comprehensive public transit and routing applicat
 
 ### 📱 Download the App
 * [⬇️ Download for Android (APK)](https://github.com/Tharu-96/sajilo-yatra/releases/download/v1.0/app-release.apk)
-* [⬇️ Download for iOS (IPA)](#)
+  
 
 ## 🚀 Key Features
 
